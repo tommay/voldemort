@@ -636,7 +636,6 @@ public class RoutedStore implements Store<ByteArray, byte[]> {
         // A semaphore indicating the number of completed operations
         // Once inititialized all permits are acquired, after that
         // permits are released when an operation is completed.
-        // semaphore.acquire(n) waits for n operations to complete
         final Versioned<byte[]> finalVersionedCopy = versionedCopy;
         final Semaphore semaphore = new Semaphore(0, false);
         // Add the operations to the pool
@@ -666,21 +665,19 @@ public class RoutedStore implements Store<ByteArray, byte[]> {
             });
         }
 
-        // Block until we get enough completions
-        int blockCount = Math.min(storeDef.getPreferredWrites() - 1, attempts);
-        for(int i = 0; i < blockCount; i++) {
+        // Block until all attempts have completed or enough complete
+        // successfully
+        for(int i = 0; i < attempts; i++) {
             try {
                 long ellapsedNs = System.nanoTime() - startNs;
                 long remainingNs = (timeoutMs * Time.NS_PER_MS) - ellapsedNs;
                 boolean acquiredPermit = semaphore.tryAcquire(Math.max(remainingNs, 0),
                                                               TimeUnit.NANOSECONDS);
                 if(!acquiredPermit) {
-                    logger.warn("Timed out waiting for put # " + (i + 1) + " of " + blockCount
+                    logger.warn("Timed out waiting for put # " + (i + 1) + " of " + attempts
                                 + " to succeed.");
                     break;
                 }
-                // okay, at least the required number of operations have
-                // completed, were they successful?
                 if(successes.get() >= this.storeDef.getPreferredWrites())
                     break;
             } catch(InterruptedException e) {
